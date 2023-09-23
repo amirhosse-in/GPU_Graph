@@ -2,7 +2,8 @@
 #include <device_launch_parameters.h>
 #include <stdio.h>
 #include "graph_io.h"
-#define INF 1000000
+
+#define INF 999999999
 
 using namespace std;
 
@@ -16,7 +17,7 @@ using namespace std;
  */
 // This function implements the Floyd-Warshall algorithm on a GPU using CUDA.
 // It takes in a distance matrix, the number of vertices in the graph, the number of edges in the graph, and the current iteration k.
-__global__ void floyd_warshall_kernel(int* distance_matrix, int vertices_count, int edges_count, int k) {
+__global__ void FloydWarshallKernel(int* distance_matrix, int vertices_count, int k) {
     // Calculate the thread ID based on the block and thread indices.
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -24,8 +25,8 @@ __global__ void floyd_warshall_kernel(int* distance_matrix, int vertices_count, 
     int i = tid / vertices_count;
     int j = tid % vertices_count;
 
-    // Check if the thread ID is within the range of valid edges and if i, j, and k are not equal.
-    if (tid < edges_count && i != j && i != k && j != k) {
+    // Check if the thread ID is within the range of valid edges.
+    if (tid < vertices_count * vertices_count) {
         // Retrieve the distances between i and j, i and k, and k and j.
         int ij = distance_matrix[tid];
         int ik = distance_matrix[i * vertices_count + k];
@@ -37,13 +38,34 @@ __global__ void floyd_warshall_kernel(int* distance_matrix, int vertices_count, 
 }
 
 /**
+ * @brief Detects negative cycles in the final distance matrix.
+ * 
+ * This function checks if there is a negative cycle in the final distance matrix
+ * by iterating over the diagonal elements of the matrix and checking if any of them
+ * are negative. If a negative diagonal element is found, it means that there is a
+ * negative cycle in the graph.
+ * 
+ * @param final_disance_matrix The final distance matrix after running the Floyd-Warshall algorithm.
+ * @param vertices_count The number of vertices in the graph.
+ */
+void NegativeCycleDetector(int* final_disance_matrix, int vertices_count) {
+    // Check if there is a negative cycle in the graph
+    for(int i = 0; i < vertices_count; i++){
+        if (final_disance_matrix[i * vertices_count + i] < 0) {
+            cout << "Negative cycle detected!" << endl;
+            return;
+        }
+    }
+}
+
+/**
  * @brief Computes all pairs shortest paths using the Floyd-Warshall algorithm on a GPU.
  * 
  * @param distance_matrix Pointer to the distance matrix in row-major order (input and output).
  * @param vertices_count Number of vertices in the graph.
  * @param edges_count Unused in this function (kept for consistency with your original code).
  */
-void floyd_warshall(int* distance_matrix, int vertices_count, int edges_count) {
+void FloydWarshall(int* distance_matrix, int vertices_count) {
     // Calculate the total number of elements in the distance matrix.
     const int squaredVertices = vertices_count * vertices_count;
 
@@ -60,11 +82,14 @@ void floyd_warshall(int* distance_matrix, int vertices_count, int edges_count) {
 
     // Perform the Floyd-Warshall algorithm for all vertices.
     for (int k = 0; k < vertices_count; k++) {
-        floyd_warshall_kernel<<<numBlocks, threadsPerBlock>>>(d_distance_matrix, vertices_count, edges_count, k);
+        FloydWarshallKernel<<<numBlocks, threadsPerBlock>>>(d_distance_matrix, vertices_count, k);
     }
 
     // Copy the updated distance matrix from device to host.
     cudaMemcpy(distance_matrix, d_distance_matrix, squaredVertices * sizeof(int), cudaMemcpyDeviceToHost);
+
+    // Check for negative cycles.
+    NegativeCycleDetector(distance_matrix, vertices_count);
 
     // Free memory on the GPU.
     cudaFree(d_distance_matrix);
@@ -80,7 +105,7 @@ void floyd_warshall(int* distance_matrix, int vertices_count, int edges_count) {
  * @param v Array of size edges_count containing the destination vertices of the edges.
  * @param w Array of size edges_count containing the weights of the edges.
  */
-void init_distance_matrix(int* &distance_matrix, int vertices_count, int edges_count, int* u, int* v, int* w) {
+void InitDistanceMatrix(int* &distance_matrix, int vertices_count, int edges_count, int* u, int* v, int* w) {
     // Allocate memory for the distance matrix
     distance_matrix = new int[vertices_count * vertices_count];
 
@@ -107,13 +132,15 @@ int main() {
     ReadGraphFromFile("graph.txt", u, v, w, edges_count, vertices_count);
 
     int* distance_matrix;
-    init_distance_matrix(distance_matrix, vertices_count, edges_count, u.data(), v.data(), w.data());
+    InitDistanceMatrix(distance_matrix, vertices_count, edges_count, u.data(), v.data(), w.data());
 
-    floyd_warshall(distance_matrix, vertices_count, edges_count);
+    FloydWarshall(distance_matrix, vertices_count);
 
+    int value;
     for(int i = 0; i < vertices_count; i++){
         for(int j = 0; j < vertices_count; j++){
-            cout << distance_matrix[i * vertices_count + j] << " ";
+            value = distance_matrix[i * vertices_count + j];
+            cout << (value == INF ? "INF" : to_string(value)) << " ";
         }
         cout << endl;
     }
