@@ -1,57 +1,92 @@
-#ifndef BENCHMARK_GRAPH_IO_H
-#define BENCHMARK_GRAPH_IO_H
-
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
+#include <iostream>
+#include "graph_io.h"
 
-#endif // BENCHMARK_GRAPH_IO_H
+#define INF 999999999
 
 using namespace std;
 
-
-
-/**
- * This function reads a graph from a file and stores its edges and weights in three separate vectors.
- * The function takes the filename as input and three vectors of integers as references to store the source vertices of the edges, 
- * the destination vertices of the edges, and the weights of the edges.
- * 
- * @param filename The name of the file to read the graph from.
- * @param U A reference to a vector of integers to store the source vertices of the edges.
- * @param V A reference to a vector of integers to store the destination vertices of the edges.
- * @param W A reference to a vector of integers to store the weights of the edges.
- */
-void read_graph_from_file(const char *filename, vector<int> &U, vector<int> &V, vector<int> &W) {
-    // Open the file for reading
-    ifstream infile(filename);
-    // A string to store each line of the file
-    string line;
-
-    // Three integers to store the source vertex, destination vertex, and weight of each edge
-    int u, v, w; 
-    // A character to store the first character of each line (to check if it is an edge line)
-    char c;
+void ReadGraphFromFile(const char *filename, vector<int> &u, vector<int> &v, vector<int> &w, int &edges_count, int &vertices_count) {
     
+    // Open the input file
+    std::ifstream file(filename);
+    // Declare a string variable to store each line of the file
+    string line;
+    
+    // Check if the file was opened successfully
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        return;
+    }
+
+    // Declare variables to store the source vertex, destination vertex, and weight of each edge
+    int source, dest, weight;
+    // Declare a character variable to store the first character of each line
+    char c;
+
+    // Declare a counter variable to keep track of the number of edges read
+    int i = 0;
     // Read each line of the file
-    while (getline(infile, line)) {
-        // Create a stringstream from the line
+    while (std::getline(file, line)) {
+        // Create a stringstream object from the line
         stringstream ss(line);
+
         // Read the first character of the line
-        ss >> c; 
-        
-        // If the first character is not 'a', skip the line (it is not an edge line)
+        ss >> c;
+        // If the first character is not 'a', return from the function (not a edge line)
         if (c != 'a')
             continue;
 
         // Read the source vertex, destination vertex, and weight of the edge
-        ss >> u >> v >> w;
-        // Subtract 1 from the source and destination vertices (to convert from 1-based indexing to 0-based indexing)
-        U.push_back(u - 1); 
-        V.push_back(v - 1);
-        W.push_back(w);
+        ss >> source >> dest >> weight;
+        // Push the source vertex, destination vertex, and weight of the edge to the corresponding arrays
+        u.push_back(source - 1); // Subtract 1 from the source and destination vertices to convert them to 0-based indexing
+        v.push_back(dest - 1);
+        w.push_back(weight);
+        // Increment the counter variable
+        i++;   
     }
 
-    // Close the file
-    infile.close();
+    // Store the number of edges read in the edges_count variable
+    edges_count = i;
+    // Store the number of vertices in the graph in the vertices_count variable
+    vertices_count = max(*max_element(u.begin(), u.end()), *max_element(v.begin(), v.end())) + 1;
+    
+    // Close the input file
+    file.close();
 }
 
+
+void WriteFloydWarshallResultToFile(const int* distance_matrix, const int vertices_count, const string& filename) {
+    // Open the file for writing
+    ofstream file(filename);
+
+    // Check if the file was opened successfully
+    if (!file.is_open()) {
+        cerr << "Failed to open file: " << filename << endl;
+        return;
+    }
+
+    // Declare a variable to store the distance value
+    int value;
+
+    // Iterate through the rows of the distance matrix
+    for(int i = 0; i < vertices_count; i++){
+        // Iterate through the columns of the distance matrix
+        for(int j = 0; j < vertices_count; j++){
+            // Get the distance value for the pair of vertices (i, j)
+            value = distance_matrix[i * vertices_count + j];
+            
+            // Write the distance value to the file, using "INF" for infinity
+            file << (value == INF ? "INF" : to_string(value)) << "\t";
+        }
+        // Start a new line for the next row
+        file << endl;
+    }
+    
+    // Close the file
+    file.close();
+}

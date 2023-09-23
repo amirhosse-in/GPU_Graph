@@ -1,6 +1,7 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 #include <stdio.h>
+#include "floyd_warshall.h"
 #include "graph_io.h"
 
 #define INF 999999999
@@ -37,17 +38,7 @@ __global__ void FloydWarshallKernel(int* distance_matrix, int vertices_count, in
     }
 }
 
-/**
- * @brief Detects negative cycles in the final distance matrix.
- * 
- * This function checks if there is a negative cycle in the final distance matrix
- * by iterating over the diagonal elements of the matrix and checking if any of them
- * are negative. If a negative diagonal element is found, it means that there is a
- * negative cycle in the graph.
- * 
- * @param final_disance_matrix The final distance matrix after running the Floyd-Warshall algorithm.
- * @param vertices_count The number of vertices in the graph.
- */
+
 void NegativeCycleDetector(int* final_disance_matrix, int vertices_count) {
     // Check if there is a negative cycle in the graph
     for(int i = 0; i < vertices_count; i++){
@@ -58,13 +49,7 @@ void NegativeCycleDetector(int* final_disance_matrix, int vertices_count) {
     }
 }
 
-/**
- * @brief Computes all pairs shortest paths using the Floyd-Warshall algorithm on a GPU.
- * 
- * @param distance_matrix Pointer to the distance matrix in row-major order (input and output).
- * @param vertices_count Number of vertices in the graph.
- * @param edges_count Unused in this function (kept for consistency with your original code).
- */
+
 void FloydWarshall(int* distance_matrix, int vertices_count) {
     // Calculate the total number of elements in the distance matrix.
     const int squaredVertices = vertices_count * vertices_count;
@@ -95,16 +80,6 @@ void FloydWarshall(int* distance_matrix, int vertices_count) {
     cudaFree(d_distance_matrix);
 }
 
-/**
- * @brief the distance matrix for the Floyd-Warshall algorithm.
- * 
- * @param dist Pointer to the distance matrix to be initialized.
- * @param vertices_count Number of vertices in the graph.
- * @param edges_count Number of edges in the graph.
- * @param u Array of size edges_count containing the source vertices of the edges.
- * @param v Array of size edges_count containing the destination vertices of the edges.
- * @param w Array of size edges_count containing the weights of the edges.
- */
 void InitDistanceMatrix(int* &distance_matrix, int vertices_count, int edges_count, int* u, int* v, int* w) {
     // Allocate memory for the distance matrix
     distance_matrix = new int[vertices_count * vertices_count];
@@ -126,24 +101,3 @@ void InitDistanceMatrix(int* &distance_matrix, int vertices_count, int edges_cou
     }
 }
 
-int main() {
-    vector<int> u, v, w;
-    int edges_count, vertices_count;
-    ReadGraphFromFile("graph.txt", u, v, w, edges_count, vertices_count);
-
-    int* distance_matrix;
-    InitDistanceMatrix(distance_matrix, vertices_count, edges_count, u.data(), v.data(), w.data());
-
-    FloydWarshall(distance_matrix, vertices_count);
-
-    int value;
-    for(int i = 0; i < vertices_count; i++){
-        for(int j = 0; j < vertices_count; j++){
-            value = distance_matrix[i * vertices_count + j];
-            cout << (value == INF ? "INF" : to_string(value)) << " ";
-        }
-        cout << endl;
-    }
-
-    return 0;
-}
